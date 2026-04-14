@@ -7,68 +7,50 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/health/grpc_health_v1"
-)
-
-// Status represents the health check result.
-type Status int
-
-const (
-	StatusUnknown Status = iota
-	StatusHealthy
-	StatusUnhealthy
-)
-
-func (s Status) String() string {
-	switch s {
-	case StatusHealthy:
-		return "HEALTHY"
-	case StatusUnhealthy:
-		return "UNHEALTHY"
-	default:
-		return "UNKNOWN"
-	}
+	"google.golang.org/grpc/health/grpc_healthRPC health checks against service.
+type Checker struct string
+	cache   *Cache
+	tout time.Duration
 }
-
-// Checker performs gRPC health checks against a target service.
-type Checker struct {
-	addr    string
-	timeout time.Duration
-}
-
-// NewChecker creates a new Checker for the given address.
-func NewChecker(addr string, timeout time.Duration) *Checker {
+ Checker targeting the given gRPC address.
+// cacheTTL controls how long results are cached; use 0 to disable caching.
+func NewChecker(addr string, timeout, cacheTTL time.Duration) *Checker {
 	return &Checker{
 		addr:    addr,
+		cache:   NewCache(cacheTTL),
 		timeout: timeout,
 	}
 }
 
-// Check performs a gRPC health check for the given service name.
-// Pass an empty string to check the overall server health.
-func (c *Checker) Check(ctx context.Context, service string) (Status, error) {
-	ctx, cancel := context.WithTimeout(ctx, c.timeout)
-	defer cancel()
+// Check queries the gRPC Health service for the given service name.
+// An empty service name checks the overall server health.
+func (c *Checker) Check(ctx context.Context, service string) (bool, error) {
+	if cached, ok := c.cache.Get(service); ok {
+		return cached.Healthy, nil
+	}
 
-	conn, err := grpc.DialContext(ctx, c.addr,
+	conn, err := grpc.NewClient(
+		c.addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
 	)
 	if err != nil {
-		return StatusUnhealthy, fmt.Errorf("failed to connect to %s: %w", c.addr, err)
+		return false, fmt.Errorf("dial %s: %w", c.addr, err)
 	}
 	defer conn.Close()
+
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
 
 	client := grpc_health_v1.NewHealthClient(conn)
 	resp, err := client.Check(ctx, &grpc_health_v1.HealthCheckRequest{
 		Service: service,
 	})
 	if err != nil {
-		return StatusUnhealthy, fmt.Errorf("health check rpc failed: %w", err)
+		c.cache.Set(service, false)
+		return false, fmt.Errorf("health check rpc: %w", err)
 	}
 
-	if resp.GetStatus() == grpc_health_v1.HealthCheckResponse_SERVING {
-		return StatusHealthy, nil
-	}
-	return StatusUnhealthy, nil
+	healthy := resp.GetStatus() == grpc_health_v1.HealthCheckResponse_SERVING
+	c.cache.Set(service, healthy)
+	return healthy, nil
 }
