@@ -1,19 +1,21 @@
-// Package health provides gRPC health checking functionality for the
-// grpc-health-proxy sidecar.
+// Package health provides gRPC health-check primitives used by the proxy.
 //
-// It implements the gRPC Health Checking Protocol (grpc.health.v1) and exposes
-// results over HTTP for use with Kubernetes readiness and liveness probes.
+// The package is structured around four main types:
 //
-// The package is composed of three main components:
+//   - Checker performs a single gRPC health check against a remote service.
+//   - Cache stores recent check results with a configurable TTL so that the
+//     HTTP handler can answer without blocking on every request.
+//   - Watcher runs a background polling loop that periodically calls Checker
+//     and refreshes the Cache, decoupling the HTTP response latency from the
+//     gRPC round-trip time.
+//   - Handler is an http.Handler that reads from the Cache and writes an
+//     appropriate HTTP status code (200 / 503) to the caller.
 //
-//   - Checker: dials a gRPC backend and calls the Health/Check RPC, returning
-//     a boolean healthy status and any transport-level error.
+// Typical usage:
 //
-//   - Cache: a short-lived in-memory result store that prevents every incoming
-//     HTTP probe from fanning out to the upstream gRPC service. Entries expire
-//     after a configurable TTL and can be invalidated explicitly.
-//
-//   - Handler: an http.Handler that wires the Checker and Cache together,
-//     records Prometheus metrics, and writes an appropriate HTTP status code
-//     (200 OK or 503 Service Unavailable) back to the caller.
+//	cache   := health.NewCache(cfg.CacheTTL)
+//	checker := health.NewChecker(cfg.GRPCAddr, logger)
+//	watcher := health.NewWatcher(checker, cache, cfg.Services, cfg.PollInterval, logger)
+//	watcher.Start(ctx)
+//	http.Handle("/healthz", health.NewHandler(cache, cfg.Services))
 package health
