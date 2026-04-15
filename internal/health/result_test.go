@@ -54,3 +54,29 @@ func TestResult_ErrPreserved(t *testing.T) {
 		t.Errorf("expected Err to wrap sentinel, got %v", r.Err)
 	}
 }
+
+func TestResult_String(t *testing.T) {
+	now := time.Now()
+	cases := []struct {
+		result Result
+		want   string
+	}{
+		{
+			Result{Service: "my-service", Status: StatusHealthy, CheckedAt: now},
+			"my-service: healthy",
+		},
+		{
+			Result{Service: "my-service", Status: StatusUnhealthy, Err: errors.New("not serving"), CheckedAt: now},
+			"my-service: unhealthy (not serving)",
+		},
+		{
+			Result{Service: "my-service", Status: StatusUnknown, Err: errors.New("dial error"), CheckedAt: now},
+			"my-service: unknown (dial error)",
+		},
+	}
+	for _, tc := range cases {
+		if got := tc.result.String(); got != tc.want {
+			t.Errorf("Result.String() = %q, want %q", got, tc.want)
+		}
+	}
+}
