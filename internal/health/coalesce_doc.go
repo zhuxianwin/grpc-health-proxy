@@ -13,5 +13,17 @@
 //	cfg := health.DefaultCoalesceConfig()  // 50 ms window
 //	checker := health.NewCoalesceChecker(base, cfg, logger)
 //
-// The coalesce checker is safe for concurrent use.
+// # Configuration
+//
+// CoalesceConfig exposes a single Window field (time.Duration). Smaller values
+// reduce latency at the cost of less coalescing; larger values increase
+// coalescing but add tail latency for callers that just miss an in-flight
+// request. The default window of 50 ms is a reasonable starting point for
+// Kubernetes liveness/readiness probes, which typically fire every 10 s.
+//
+// # Concurrency
+//
+// The coalesce checker is safe for concurrent use. Each distinct service name
+// is tracked independently, so checks for different services never block one
+// another.
 package health
