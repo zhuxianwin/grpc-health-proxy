@@ -95,3 +95,13 @@ func TestCoalesce_ContextCancelledWhileWaiting(t *testing.T) {
 		t.Fatal("expected error from cancelled context")
 	}
 }
+
+func TestCoalesce_UnhealthyResultPropagated(t *testing.T) {
+	inner := &countingChecker{result: Result{Status: StatusUnhealthy}}
+	ch := NewCoalesceChecker(inner, DefaultCoalesceConfig(), nil)
+
+	r := ch.Check(context.Background(), "svc")
+	if r.Status != StatusUnhealthy {
+		t.Fatalf("expected unhealthy, got %v", r.Status)
+	}
+}
