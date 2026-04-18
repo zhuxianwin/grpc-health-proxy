@@ -50,8 +50,13 @@ func (b *BatchChecker) CheckAll(ctx context.Context) []BatchResult {
 		wg.Add(1)
 		go func(idx int, target string) {
 			defer wg.Done()
-			b.sem <- struct{}{}
-			defer func() { <-b.sem }()
+			select {
+			case b.sem <- struct{}{}:
+				defer func() { <-b.sem }()
+			case <-ctx.Done():
+				results[idx] = BatchResult{Target: target, Result: Result{Status: StatusUnknown, Err: ctx.Err()}}
+				return
+			}
 			r := b.checkers[target].Check(ctx, target)
 			results[idx] = BatchResult{Target: target, Result: r}
 		}(i, t)
