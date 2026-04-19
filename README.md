@@ -31,6 +31,15 @@ grpc-health-proxy \
 
 The proxy will forward HTTP GET requests to `/healthz` and translate the response from the gRPC [Health Checking Protocol](https://grpc.io/docs/guides/health-checking/).
 
+### HTTP Response Codes
+
+| gRPC Status | HTTP Status |
+|-------------|-------------|
+| `SERVING` | `200 OK` |
+| `NOT_SERVING` | `503 Service Unavailable` |
+| `UNKNOWN` | `503 Service Unavailable` |
+| Unreachable / error | `502 Bad Gateway` |
+
 ### Kubernetes Readiness Probe
 
 ```yaml
