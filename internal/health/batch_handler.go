@@ -52,14 +52,20 @@ func (h *BatchStatusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"checks":  entries,
 	}
 
-	code := http.StatusOK
-	if overall != StatusHealthy {
-		code = http.StatusServiceUnavailable
-	}
+	code := httpStatusCode(overall)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	if err := json.NewEncoder(w).Encode(body); err != nil {
 		h.log.Error("batch handler encode", "err", err)
 	}
+}
+
+// httpStatusCode maps a health Status to an HTTP status code.
+// Healthy targets return 200 OK; anything else returns 503 Service Unavailable.
+func httpStatusCode(s Status) int {
+	if s == StatusHealthy {
+		return http.StatusOK
+	}
+	return http.StatusServiceUnavailable
 }
