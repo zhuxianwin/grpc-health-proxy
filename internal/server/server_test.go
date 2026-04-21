@@ -13,6 +13,25 @@ import (
 
 func freePort() int { return 19876 }
 
+// startServer creates and starts a server with the given config, returning a
+// cleanup function that shuts the server down. It fails the test immediately
+// if the server cannot be created.
+func startServer(t *testing.T, cfg *config.Config) *server.Server {
+	t.Helper()
+	srv, err := server.New(cfg)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	go func() { _ = srv.Start() }()
+	time.Sleep(50 * time.Millisecond)
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(ctx)
+	})
+	return srv
+}
+
 func TestServer_LivezEndpoint(t *testing.T) {
 	cfg := &config.Config{
 		HTTPPort:    freePort(),
@@ -21,18 +40,7 @@ func TestServer_LivezEndpoint(t *testing.T) {
 		GRPCService: "",
 	}
 
-	srv, err := server.New(cfg)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-
-	go func() { _ = srv.Start() }()
-	time.Sleep(50 * time.Millisecond)
-	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		_ = srv.Shutdown(ctx)
-	}()
+	startServer(t, cfg)
 
 	resp, err := http.Get(fmt.Sprintf("http://localhost:%d/livez", cfg.HTTPPort))
 	if err != nil {
