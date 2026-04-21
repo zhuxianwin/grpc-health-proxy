@@ -56,3 +56,22 @@ func TestFlipHandler_ContentType(t *testing.T) {
 		t.Fatalf("expected application/json, got %s", ct)
 	}
 }
+
+func TestFlipHandler_ToggleTwiceRestoresState(t *testing.T) {
+	inner := &stubChecker{result: Result{Status: StatusHealthy}}
+	fc := NewFlipChecker(inner, DefaultFlipConfig())
+	h := NewFlipStatusHandler(fc)
+
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/?action=toggle", nil)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("toggle %d: expected 200, got %d", i+1, rec.Code)
+		}
+	}
+
+	if fc.Active() {
+		t.Fatal("expected flip to be inactive after two toggles")
+	}
+}
