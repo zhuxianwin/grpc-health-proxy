@@ -84,3 +84,26 @@ func TestBatch_DefaultConfigOnZero(t *testing.T) {
 		t.Errorf("expected default concurrency %d", DefaultBatchConfig().MaxConcurrency)
 	}
 }
+
+func TestBatch_ContextCancellation(t *testing.T) {
+	checkers := map[string]Checker{
+		"slow": &fixedChecker{
+			result: Result{Status: StatusHealthy},
+			delay:  500 * time.Millisecond,
+		},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	bc := NewBatchChecker(checkers, DefaultBatchConfig())
+	results := bc.CheckAll(ctx)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Result.Status != StatusUnhealthy {
+		t.Errorf("expected unhealthy result after context cancellation")
+	}
+	if !errors.Is(results[0].Result.Err, context.DeadlineExceeded) {
+		t.Errorf("expected DeadlineExceeded error, got %v", results[0].Result.Err)
+	}
+}
