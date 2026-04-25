@@ -67,6 +67,25 @@ func TestDebounce_DefaultConfigOnZero(t *testing.T) {
 	}
 }
 
+func TestDebounce_CachedResultMatchesInnerResult(t *testing.T) {
+	want := Healthy("svc")
+	inner := &countingChecker{res: want}
+	cfg := DebounceConfig{Window: 10 * time.Second}
+	d := NewDebounceChecker(inner, cfg, nil)
+
+	first, err := d.Check(context.Background(), "svc")
+	if err != nil {
+		t.Fatalf("unexpected error on first call: %v", err)
+	}
+	second, err := d.Check(context.Background(), "svc")
+	if err != nil {
+		t.Fatalf("unexpected error on cached call: %v", err)
+	}
+	if first != second {
+		t.Fatalf("cached result %v does not match first result %v", second, first)
+	}
+}
+
 func TestDebounceHandler_ReturnsJSON(t *testing.T) {
 	inner := &countingChecker{res: Healthy("svc")}
 	d := NewDebounceChecker(inner, DefaultDebounceConfig(), nil)
